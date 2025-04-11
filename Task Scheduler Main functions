@@ -1,0 +1,270 @@
+#include <iostream>
+#include <queue>
+#include <string>
+#include <ctime>
+#include <iomanip>
+#include <limits>
+
+using namespace std;
+
+
+struct Task {
+    int id;
+    string description;
+    time_t deadline;
+    int priority; // 1 (highest) to 5 (lowest)
+    int completionTime; // in minutes
+    bool isCompleted;
+
+   // Constructor
+    Task(int id, string desc, time_t dl, int prio, int compTime) 
+        : id(id), description(desc), deadline(dl), priority(prio), 
+          completionTime(compTime), isCompleted(false) {}
+
+    bool operator<(const Task& other) const {
+        
+        if (priority != other.priority) {
+            return priority > other.priority;
+        }
+        
+        return deadline > other.deadline;
+    }
+};
+
+
+struct Node {
+    Task task;
+    Node* next;
+
+    Node(const Task& t) : task(t), next(nullptr) {}
+};
+
+
+class TaskList {
+private:
+    Node* head;
+    Node* tail;
+    int size;
+
+public:
+    TaskList() : head(nullptr), tail(nullptr), size(0) {}
+
+    ~TaskList() {
+        if (head == nullptr) return;
+
+        Node* current = head;
+        Node* nextNode;
+
+        do {
+            nextNode = current->next;
+            delete current;
+            current = nextNode;
+        } while (current != head);
+    }
+
+    // Add task to the end of the list
+    void addTask(const Task& task) {
+        Node* newNode = new Node(task);
+
+        if (head == nullptr) {
+            head = newNode;
+            tail = newNode;
+            newNode->next = head;
+        } else {
+            tail->next = newNode;
+            tail = newNode;
+            tail->next = head;
+        }
+        size++;
+    }
+
+    // Remove task by ID
+    bool removeTask(int id) {
+        if (head == nullptr) return false;
+
+        Node* current = head;
+        Node* prev = tail;
+        bool found = false;
+
+        do {
+            if (current->task.id == id) {
+                found = true;
+                break;
+            }
+            prev = current;
+            current = current->next;
+        } while (current != head);
+
+        if (!found) return false;
+
+        if (current == head && current->next == head) {
+            // Only one node in the list
+            head = nullptr;
+            tail = nullptr;
+        } else if (current == head) {
+            // Removing head
+            head = head->next;
+            tail->next = head;
+        } else if (current == tail) {
+            // Removing tail
+            prev->next = head;
+            tail = prev;
+        } else {
+            // Removing middle node
+            prev->next = current->next;
+        }
+
+        delete current;
+        size--;
+        return true;
+    }
+
+    // Get task by ID (returns nullptr if not found)
+    Task* getTask(int id) {
+        if (head == nullptr) return nullptr;
+
+        Node* current = head;
+
+        do {
+            if (current->task.id == id) {
+                return &(current->task);
+            }
+            current = current->next;
+        } while (current != head);
+
+        return nullptr;
+    }
+
+    // Display all tasks
+    void displayAll() {
+        if (head == nullptr) {
+            cout << "No tasks in the list.\n";
+            return;
+        }
+
+        Node* current = head;
+        int count = 1;
+
+        cout << "All Tasks:\n";
+        cout << "------------------------------------------------------------\n";
+        cout << left << setw(5) << "ID" << setw(25) << "Description" 
+             << setw(20) << "Deadline" << setw(10) << "Priority" 
+             << setw(15) << "Time (min)" << "Status\n";
+        cout << "------------------------------------------------------------\n";
+
+        do {
+            const Task& t = current->task;
+            char deadlineStr[20];
+            strftime(deadlineStr, sizeof(deadlineStr), "%Y-%m-%d %H:%M", localtime(&t.deadline));
+
+            cout << left << setw(5) << t.id << setw(25) << t.description 
+                 << setw(20) << deadlineStr << setw(10) << t.priority 
+                 << setw(15) << t.completionTime 
+                 << (t.isCompleted ? "Completed" : "Pending") << "\n";
+
+            current = current->next;
+            count++;
+        } while (current != head);
+
+        cout << "------------------------------------------------------------\n";
+    }
+
+    // Get the head of the list
+    Node* getHead() const { return head; }
+
+    // Get the size of the list
+    int getSize() const { return size; }
+};
+
+// Task Scheduler class
+class TaskScheduler {
+private:
+    TaskList taskList;
+    priority_queue<Task> taskQueue;
+    int nextId;
+
+    // Rebuild the priority queue from the linked list
+    void rebuildQueue() {
+        // Clear the current queue
+        taskQueue = priority_queue<Task>();
+
+        // Add all tasks from the linked list to the queue
+        Node* current = taskList.getHead();
+        if (current == nullptr) return;
+
+        do {
+            if (!current->task.isCompleted) {
+                taskQueue.push(current->task);
+            }
+            current = current->next;
+        } while (current != taskList.getHead());
+    }
+
+public:
+    TaskScheduler() : nextId(1) {}
+
+    // Add a new task
+    void addTask(string description, time_t deadline, int priority, int completionTime) {
+        Task newTask(nextId++, description, deadline, priority, completionTime);
+        taskList.addTask(newTask);
+        if (!newTask.isCompleted) {
+            taskQueue.push(newTask);
+        }
+        cout << "Task added successfully. ID: " << newTask.id << "\n";
+    }
+
+    // Remove a task
+    void removeTask(int id) {
+        if (taskList.removeTask(id)) {
+            rebuildQueue(); // Need to rebuild the queue since we modified the tasks
+            cout << "Task with ID " << id << " removed successfully.\n";
+        } else {
+            cout << "Task with ID " << id << " not found.\n";
+        }
+    }
+
+    // Set deadline for a task
+    void setDeadline(int id, time_t newDeadline) {
+        Task* task = taskList.getTask(id);
+        if (task) {
+            task->deadline = newDeadline;
+            rebuildQueue(); // Priority queue needs to be rebuilt
+            cout << "Deadline updated for task ID " << id << ".\n";
+        } else {
+            cout << "Task with ID " << id << " not found.\n";
+        }
+    }
+
+    // Set priority for a task
+    void setPriority(int id, int newPriority) {
+        if (newPriority < 1 || newPriority > 5) {
+            cout << "Priority must be between 1 (highest) and 5 (lowest).\n";
+            return;
+        }
+
+        Task* task = taskList.getTask(id);
+        if (task) {
+            task->priority = newPriority;
+            rebuildQueue(); // Priority queue needs to be rebuilt
+            cout << "Priority updated for task ID " << id << ".\n";
+        } else {
+            cout << "Task with ID " << id << " not found.\n";
+        }
+    }
+
+    // Set completion time for a task
+    void setCompletionTime(int id, int newCompletionTime) {
+        Task* task = taskList.getTask(id);
+        if (task) {
+            task->completionTime = newCompletionTime;
+            cout << "Completion time updated for task ID " << id << ".\n";
+        } else {
+            cout << "Task with ID " << id << " not found.\n";
+        }
+    }
+
+
+// Display all tasks
+    void displayAllTasks() {
+        taskList.displayAll();
+    }
