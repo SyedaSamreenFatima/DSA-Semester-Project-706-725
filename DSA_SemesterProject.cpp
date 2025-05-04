@@ -1,0 +1,345 @@
+#include <iostream>
+#include <queue>
+#include <string>
+using namespace std;
+ 
+ struct Task {
+     int id;
+     string description;
+     string deadline; // now deadline is a simple string
+     int priority; // 1 (highest) to 5 (lowest)
+     int completionTime;
+     bool isCompleted;
+ 
+     Task(int id, string desc, string dl, int prio, int compTime)
+         : id(id), description(desc), deadline(dl),
+           priority(prio), completionTime(compTime), isCompleted(false) {}
+ 
+     bool operator<(const Task& other) const {
+         if (priority != other.priority) {
+             return priority > other.priority;
+         }
+         return deadline > other.deadline;
+     }
+ };
+ 
+ struct Node {
+     Task task;
+     Node* next;
+     Node(const Task& t) : task(t), next(nullptr) {}
+ };
+ 
+ class TaskList {
+ private:
+     Node* head;
+     Node* tail;
+     int size;
+ 
+ public:
+     TaskList() : head(nullptr), tail(nullptr), size(0) {}
+ 
+     ~TaskList() {
+         if (!head) return;
+         Node* current = head;
+         Node* nextNode;
+         do {
+             nextNode = current->next;
+             delete current;
+             current = nextNode;
+         } while (current != head);
+     }
+ 
+     void addTask(const Task& task) {
+         Node* newNode = new Node(task);
+         if (!head) {
+             head = tail = newNode;
+             newNode->next = head;
+         } else {
+             tail->next = newNode;
+             tail = newNode;
+             tail->next = head;
+         }
+         size++;
+     }
+ 
+     bool removeTask(int id) {
+         if (!head) return false;
+         Node* current = head;
+         Node* prev = tail;
+         bool found = false;
+         do {
+             if (current->task.id == id) {
+                 found = true;
+                 break;
+             }
+             prev = current;
+             current = current->next;
+         } while (current != head);
+ 
+         if (!found) return false;
+ 
+         if (current == head && current->next == head) {
+             head = tail = nullptr;
+         } else if (current == head) {
+             head = head->next;
+             tail->next = head;
+         } else if (current == tail) {
+             prev->next = head;
+             tail = prev;
+         } else {
+             prev->next = current->next;
+         }
+         delete current;
+         size--;
+         return true;
+     }
+ 
+     Task* getTask(int id) {
+         if (!head) return nullptr;
+         Node* current = head;
+         do {
+             if (current->task.id == id) {
+                 return &(current->task);
+             }
+             current = current->next;
+         } while (current != head);
+         return nullptr;
+     }
+ 
+     void displayAll() {
+         if (!head) {
+             cout << "No tasks in the list.\n";
+             return;
+         }
+         Node* current = head;
+         cout << "\nAll Tasks:\n";
+         cout << "------------------------------------------------------\n";
+         cout << "ID  | Description         | Deadline    | Priority | Time | Status\n";
+         cout << "------------------------------------------------------\n";
+         do {
+             Task& t = current->task;
+             cout << t.id << "   " << t.description << "   " 
+                  << t.deadline << "   " << t.priority 
+                  << "      " << t.completionTime << "    " 
+                  << (t.isCompleted ? "Completed" : "Pending") << "\n";
+             current = current->next;
+         } while (current != head);
+         cout << "------------------------------------------------------\n";
+     }
+ 
+     Node* getHead() const { return head; }
+     int getSize() const { return size; }
+ };
+ 
+ class TaskScheduler {
+ private:
+     TaskList taskList;
+     priority_queue<Task> taskQueue;
+     int nextId;
+ 
+     void rebuildQueue() {
+         taskQueue = priority_queue<Task>();
+         Node* current = taskList.getHead();
+         if (!current) return;
+         do {
+             if (!current->task.isCompleted) {
+                 taskQueue.push(current->task);
+             }
+             current = current->next;
+         } while (current != taskList.getHead());
+     }
+ 
+ public:
+     TaskScheduler() : nextId(1) {}
+ 
+     void addTask(string description, string deadline, int priority, int completionTime) {
+         Task newTask(nextId++, description, deadline, priority, completionTime);
+         taskList.addTask(newTask);
+         if (!newTask.isCompleted) {
+             taskQueue.push(newTask);
+         }
+         cout << "Task added successfully. ID: " << newTask.id << "\n";
+     }
+ 
+     void removeTask(int id) {
+         if (taskList.removeTask(id)) {
+             rebuildQueue();
+             cout << "Task with ID " << id << " removed successfully.\n";
+         } else {
+             cout << "Task with ID " << id << " not found.\n";
+         }
+     }
+ 
+     void setDeadline(int id, string newDeadline) {
+         Task* task = taskList.getTask(id);
+         if (task) {
+             task->deadline = newDeadline;
+             rebuildQueue();
+             cout << "Deadline updated for task ID " << id << ".\n";
+         } else {
+             cout << "Task with ID " << id << " not found.\n";
+         }
+     }
+ 
+     void setPriority(int id, int newPriority) {
+         if (newPriority < 1 || newPriority > 5) {
+             cout << "Priority must be between 1 and 5.\n";
+             return;
+         }
+         Task* task = taskList.getTask(id);
+         if (task) {
+             task->priority = newPriority;
+             rebuildQueue();
+             cout << "Priority updated for task ID " << id << ".\n";
+         } else {
+             cout << "Task with ID " << id << " not found.\n";
+         }
+     }
+ 
+     void setCompletionTime(int id, int newCompletionTime) {
+         Task* task = taskList.getTask(id);
+         if (task) {
+             task->completionTime = newCompletionTime;
+             cout << "Completion time updated for task ID " << id << ".\n";
+         } else {
+             cout << "Task with ID " << id << " not found.\n";
+         }
+     }
+ 
+     void markAsComplete(int id) {
+         Task* task = taskList.getTask(id);
+         if (task) {
+             task->isCompleted = true;
+             rebuildQueue();
+             cout << "Task ID " << id << " marked as complete.\n";
+         } else {
+             cout << "Task with ID " << id << " not found.\n";
+         }
+     }
+ 
+     void displayAllTasks() {
+         taskList.displayAll();
+     }
+ 
+     void displaySchedule() {
+         if (taskQueue.empty()) {
+             cout << "No tasks to schedule.\n";
+             return;
+         }
+         priority_queue<Task> tempQueue = taskQueue;
+         int position = 1;
+         cout << "\nSuggested Task Schedule:\n";
+         cout << "---------------------------------------------\n";
+         cout << "Pos | ID  | Description     | Deadline    | Priority | Time\n";
+         cout << "---------------------------------------------\n";
+         while (!tempQueue.empty()) {
+             Task t = tempQueue.top();
+             cout << position++ << "   " << t.id << "   " 
+                  << t.description << "   " 
+                  << t.deadline << "   " 
+                  << t.priority << "        " 
+                  << t.completionTime << "\n";
+             tempQueue.pop();
+         }
+         cout << "---------------------------------------------\n";
+     }
+ };
+ 
+ void displayMenu() {
+     cout << "\nTask Scheduler Menu:\n";
+     cout << "1. Add Task\n";
+     cout << "2. Remove Task\n";
+     cout << "3. Set Task Deadline\n";
+     cout << "4. Set Task Priority\n";
+     cout << "5. Set Task Completion Time\n";
+     cout << "6. Mark Task as Complete\n";
+     cout << "7. Display All Tasks\n";
+     cout << "8. Display Suggested Schedule\n";
+     cout << "9. Exit\n";
+     cout << "Enter your choice: ";
+ }
+ 
+ int main() {
+     TaskScheduler scheduler;
+     int choice;
+ 
+     cout << "Welcome to the Task Scheduler!\n";
+ 
+     while (true) {
+         displayMenu();
+         cin >> choice;
+         cin.ignore(); // just ignore leftover newline character
+ 
+         switch (choice) {
+             case 1: {
+                 string description, deadline;
+                 int priority, completionTime;
+                 cout << "Enter task description: ";
+                 getline(cin, description);
+                 cout << "Enter deadline (YYYY-MM-DD HH:MM format as string): ";
+                 getline(cin, deadline);
+                 cout << "Enter priority (1-5): ";
+                 cin >> priority;
+                 cout << "Enter estimated completion time (minutes): ";
+                 cin >> completionTime;
+                 cin.ignore();
+                 scheduler.addTask(description, deadline, priority, completionTime);
+                 break;
+             }
+             case 2: {
+                 int id;
+                 cout << "Enter task ID to remove: ";
+                 cin >> id;
+                 scheduler.removeTask(id);
+                 break;
+             }
+             case 3: {
+                 int id;
+                 string newDeadline;
+                 cout << "Enter task ID: ";
+                 cin >> id;
+                 cin.ignore();
+                 cout << "Enter new deadline (YYYY-MM-DD HH:MM format): ";
+                 getline(cin, newDeadline);
+                 scheduler.setDeadline(id, newDeadline);
+                 break;
+             }
+             case 4: {
+                 int id, newPriority;
+                 cout << "Enter task ID: ";
+                 cin >> id;
+                 cout << "Enter new priority (1-5): ";
+                 cin >> newPriority;
+                 scheduler.setPriority(id, newPriority);
+                 break;
+             }
+             case 5: {
+                 int id, newTime;
+                 cout << "Enter task ID: ";
+                 cin >> id;
+                 cout << "Enter new completion time (minutes): ";
+                 cin >> newTime;
+                 scheduler.setCompletionTime(id, newTime);
+                 break;
+             }
+             case 6: {
+                 int id;
+                 cout << "Enter task ID to mark as complete: ";
+                 cin >> id;
+                 scheduler.markAsComplete(id);
+                 break;
+             }
+             case 7:{
+                 scheduler.displayAllTasks();
+                 break;}
+             case 8:{
+                 scheduler.displaySchedule();
+                 break;}
+             case 9:{
+                 cout << "Exiting Task Scheduler. Goodbye!\n";
+                 return 0;}
+             default:{
+                 cout << "Invalid choice. Try again.\n";}
+    }
+}
+}
